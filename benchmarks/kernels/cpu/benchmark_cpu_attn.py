@@ -27,6 +27,8 @@ def get_attn_isa(
     else:
         if current_platform.get_cpu_architecture() == CpuArchEnum.ARM:
             return "neon"
+        elif current_platform.get_cpu_architecture() == CpuArchEnum.RISCV:
+            return "rvv"
         elif torch.cpu._is_amx_tile_supported():
             return "amx"
         else:
@@ -235,7 +237,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--use-sink", action="store_true")
     parser.add_argument(
-        "--isa", type=str, choices=["vec", "neon", "amx", "vec16"], default=None
+        "--isa", type=str, choices=["vec", "neon", "amx", "vec16", "rvv"], default=None
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--iters", type=int, default=20)

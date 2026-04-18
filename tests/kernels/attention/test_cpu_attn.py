@@ -48,6 +48,8 @@ def get_attn_isa(
     else:
         if current_platform.get_cpu_architecture() == CpuArchEnum.ARM:
             return "neon"
+        elif current_platform.get_cpu_architecture() == CpuArchEnum.RISCV:
+            return "rvv"
         elif torch.cpu._is_amx_tile_supported():
             return "amx"
         else:
@@ -484,6 +486,49 @@ def test_varlen_with_paged_kv_normal_vec16(
     reason="Not an Arm CPU.",
 )
 def test_varlen_with_paged_kv_normal_neon(
+    seq_lens: list[tuple[int, int]],
+    num_heads: tuple[int, int],
+    head_size: int,
+    sliding_window: int | None,
+    dtype: torch.dtype,
+    block_size: int,
+    soft_cap: float | None,
+    num_blocks: int,
+    use_alibi: bool,
+    use_sink: bool,
+    isa: str,
+) -> None:
+    varlen_with_paged_kv(
+        seq_lens=seq_lens,
+        num_heads=num_heads,
+        head_size=head_size,
+        sliding_window=sliding_window,
+        dtype=dtype,
+        block_size=block_size,
+        soft_cap=soft_cap,
+        num_blocks=num_blocks,
+        use_alibi=use_alibi,
+        use_sink=use_sink,
+        isa=isa,
+    )
+
+
+@pytest.mark.parametrize("seq_lens", SEQ_LENS)
+@pytest.mark.parametrize("num_heads", NUM_HEADS)
+@pytest.mark.parametrize("head_size", HEAD_SIZES)
+@pytest.mark.parametrize("block_size", [96, 128])
+@pytest.mark.parametrize("sliding_window", SLIDING_WINDOWS)
+@pytest.mark.parametrize("dtype", QTYPES)
+@pytest.mark.parametrize("soft_cap", [None])
+@pytest.mark.parametrize("num_blocks", NUM_BLOCKS)
+@pytest.mark.parametrize("use_alibi", [False])
+@pytest.mark.parametrize("use_sink", [False])
+@pytest.mark.parametrize("isa", ["rvv"])
+@pytest.mark.skipif(
+    current_platform.get_cpu_architecture() != CpuArchEnum.RISCV,
+    reason="Not a RISC-V CPU.",
+)
+def test_varlen_with_paged_kv_normal_rvv(
     seq_lens: list[tuple[int, int]],
     num_heads: tuple[int, int],
     head_size: int,
