@@ -162,15 +162,18 @@ def _get_cpu_list() -> list[LogicalCPUInfo]:
         return _synthesize_cpu_list()
 
     lscpu_output = subprocess.check_output(
-        "lscpu -J -e=CPU,CORE,NODE", shell=True, text=True
+        "lscpu --json --extended=CPU,CORE,NODE --online", shell=True, text=True
     )
 
-    # On some architectures (notably RISC-V), lscpu outputs bare `-` for
-    # all fields (cpu, core, node), not just node.  Replace any bare `-`
-    # value with a quoted "-" so the JSON is valid, then let _int() and
-    # the filter below handle the invalid entries.
+    # For platforms without NUMA, map bare `-` node to 0 so non-NUMA
+    # systems keep the existing behavior from #39781.
+    lscpu_output = re.sub(r'"node":\s*-\s*(,|\n|\})', r'"node": 0\1', lscpu_output)
+
+    # On some architectures (notably RISC-V), lscpu also emits bare `-`
+    # for cpu/core.  Quote them so the JSON parses; they will decode to
+    # -1 and be filtered out below, triggering the synthesized fallback.
     lscpu_output = re.sub(
-        r'("(?:cpu|core|node)":\s*)-\s*(,|\n|\})',
+        r'("(?:cpu|core)":\s*)-\s*(,|\n|\})',
         r'\1"-"\2',
         lscpu_output,
     )
