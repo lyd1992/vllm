@@ -177,6 +177,14 @@ def cpu_platform_plugin() -> str | None:
                 logger.debug(
                     "Confirmed CPU platform is available because the machine is MacOS."
                 )
+        if not is_cpu:
+            import platform as _platform
+
+            is_cpu = _platform.machine().lower().startswith("riscv")
+            if is_cpu:
+                logger.debug(
+                    "Confirmed CPU platform is available because the machine is RISC-V."
+                )
 
     except Exception as e:
         logger.debug("CPU platform is not available because: %s", str(e))

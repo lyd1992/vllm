@@ -147,19 +147,33 @@ def get_visible_memory_node() -> list[int]:
 
 
 @cache
+def _synthesize_cpu_list() -> list[LogicalCPUInfo]:
+    """Synthesize a flat CPU list: each logical CPU is its own core on
+    NUMA node 0.  Used when lscpu output is unavailable or unparsable
+    (e.g. macOS, RISC-V)."""
+    cpu_count = os.cpu_count()
+    assert cpu_count
+    return [LogicalCPUInfo(i, i, 0) for i in range(cpu_count)]
+
+
 def _get_cpu_list() -> list[LogicalCPUInfo]:
     if platform.system() == "Darwin":
         # For MacOS, no user-level CPU affinity and SMT, return all CPUs
-        cpu_count = os.cpu_count()
-        assert cpu_count
-        return [LogicalCPUInfo(i, i, 0) for i in range(cpu_count)]
+        return _synthesize_cpu_list()
 
     lscpu_output = subprocess.check_output(
-        "lscpu --json --extended=CPU,CORE,NODE --online", shell=True, text=True
+        "lscpu -J -e=CPU,CORE,NODE", shell=True, text=True
     )
 
-    # For platform without NUMA, replace '-' to '0'
-    lscpu_output = re.sub(r'"node":\s*-\s*(,|\n)', r'"node": 0\1', lscpu_output)
+    # On some architectures (notably RISC-V), lscpu outputs bare `-` for
+    # all fields (cpu, core, node), not just node.  Replace any bare `-`
+    # value with a quoted "-" so the JSON is valid, then let _int() and
+    # the filter below handle the invalid entries.
+    lscpu_output = re.sub(
+        r'("(?:cpu|core|node)":\s*)-\s*(,|\n|\})',
+        r'\1"-"\2',
+        lscpu_output,
+    )
 
     logical_cpu_list: list[LogicalCPUInfo] = json.loads(
         lscpu_output, object_hook=LogicalCPUInfo.json_decoder
@@ -169,5 +183,10 @@ def _get_cpu_list() -> list[LogicalCPUInfo]:
     logical_cpu_list = [
         x for x in logical_cpu_list if -1 not in (x.id, x.physical_core, x.numa_node)
     ]
+
+    # If lscpu returned no valid entries (e.g. RISC-V where all fields
+    # are bare `-`), fall back to synthesized topology.
+    if not logical_cpu_list:
+        logical_cpu_list = _synthesize_cpu_list()
 
     return logical_cpu_list
