@@ -87,7 +87,13 @@ def get_memory_node_info(node_id: int = 0) -> MemoryNodeInfo:
 
     meminfo_path = f"/sys/devices/system/node/node{node_id}/meminfo"
     if not os.path.exists(meminfo_path):
-        raise RuntimeError(f"{meminfo_path} doesn't exit.")
+        # Non-NUMA systems (e.g. many RISC-V boards) don't expose per-node
+        # meminfo. Fall back to system-wide numbers from psutil.
+        vm = psutil.virtual_memory()
+        return MemoryNodeInfo(
+            total_memory=vm.total,
+            available_memory=vm.available,
+        )
 
     meminfo = {}
     with open(meminfo_path) as f:
